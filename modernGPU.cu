@@ -229,13 +229,30 @@ __global__ void k_upsweep(int* result, int* partialSums, int* vector, int vector
 
         int global_index = gIdx * VT + i;
         if (global_index < vectorSize && (tIdx + i) != 0)
-            partial_sum += vector[global_index - 1];
+            partial_sum += vector[global_index-1];
+     }
+
+    //add last element (it was jumped) to the shared array
+    if (tIdx==blockDim.x -1){
+        //printf("aaaaa\n");
+        partial_sum += vector[gIdx*VT + 2];
     }
 
     s_vector[tIdx] = partial_sum;
     int first = 0;
     __syncthreads();
 
+    if(tIdx==0){
+        for(int i=0; i<5;i++){
+            printf(" % d ", s_vector[i]);
+        }
+        printf("\n");
+    }
+
+/*
+    if (gIdx == 0)
+        printf("LAST POSITION OF LOADED SHARED MEMORY %d\n", s_vector[127]);
+*/
     #pragma unroll
     for (int offset = 1; offset < blockDim.x; offset += offset)
     {
@@ -252,7 +269,7 @@ __global__ void k_upsweep(int* result, int* partialSums, int* vector, int vector
     }else{
         result[gIdx] = 0;
     }
-
+/*
     int lastElem = 0;
     if (blockIdx.x == 0)
         lastElem = vector[blockDim.x * VT-1];
@@ -260,9 +277,16 @@ __global__ void k_upsweep(int* result, int* partialSums, int* vector, int vector
         lastElem = vector[vectorSize-1];
     else
         lastElem = vector[((blockIdx.x +1) * blockDim.x * VT) -1];
+*/
+    /*
+    if (gIdx==0){
+        printf("My last elem Is %d\n", s_vector[blockDim.x + first -1 ]);
+
+    }
+    */
 
     if (tIdx == 0)
-        partialSums[blockIdx.x] = s_vector[blockDim.x + first - 1] + lastElem;
+        partialSums[blockIdx.x] = s_vector[blockDim.x + first - 1];//+ lastElem;
 
 }
 

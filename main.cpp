@@ -6,6 +6,7 @@
 #include "modernGPU.cuh"
 
 #define VT 3
+#define NTHREADS 3
 
 void pickCudaDevice()
 {
@@ -77,16 +78,35 @@ int main(int argc, char *argv[])
     int size = 100000000;
     int vt = 3;
 
+
+
+    //example
+    size =9;
+
+
     int* vector = (int *) malloc (size * sizeof(int));
     int* vectorCheck = (int *) malloc (size * sizeof(int));
 
+
+    //example
+    vector[0] = 1;
+    vector[1] = 3;
+    vector[2] = 5;
+    vector[3] = 2;
+    vector[4] = 7;
+    vector[5] = 9;
+    vector[6] = 6;
+    vector[7] = 2;
+    vector[8] = 3;
+
+/*
     int number = 0;
     for (int i = 0; i < size; i++){
         if (i % (vt * 128) == 0)
             number++;
-        vector[i] = number; //rand() % 10;
+        vector[i] = rand() % 10;
     }
-
+*/
 /*
     for (int i=0; i<size; i++)
         printf(" %d ", vector[i]);
@@ -118,7 +138,7 @@ int main(int argc, char *argv[])
     cudaMemcpy(d_vectorCheck,vector,size * sizeof(int), cudaMemcpyHostToDevice);
 
 
-    computeGridSize(iDivUp(size,VT),128,numBlocks,numThreads);
+    computeGridSize(iDivUp(size,VT),NTHREADS,numBlocks,numThreads);
 
     printf("Start kernel\n");
     //reduce_wrapper(numBlocks,numThreads,d_result,d_vector,size, vt);
