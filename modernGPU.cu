@@ -7,6 +7,7 @@
 
 
 #define SHARED_SIZE 512
+#define VT 3
 
 void reduce_wrapper(uint numBlocks,
                     uint numThreads,
@@ -29,9 +30,9 @@ __global__ void k_reduce(int* result, int* vector, int vectorSize, int vt){
 
     //Load values in shared memory
     int partial_sum = 0;
-    for (int i= 0; i < vt; i++){
+    for (int i= 0; i < VT; i++){
 
-        int global_index = gIdx * vt + i;
+        int global_index = gIdx * VT + i;
         if (global_index < vectorSize)
             partial_sum += vector[global_index];
 
@@ -103,14 +104,14 @@ void exclusiveScan_wrapper(uint numBlocks,
     int* blockSums;
     cudaMalloc((void **) &blockSums, numBlocks * sizeof(int));
 
-    printf("numBlocks %d\n", numBlocks);
+    //printf("numBlocks %d\n", numBlocks);
 
     //Perform scans in each CTA, and store the total number in each block in interBlockScan
-    k_upsweep <<<numBlocks,numThreads>>> (localScan, blockSums, vector, vectorSize, vt);
+    k_upsweep <<<numBlocks,numThreads>>> (localScan, blockSums, vector, vectorSize, vt, iDivUp(vectorSize,vt));
 
     uint numBlocks_exScan = iDivUp(numBlocks, numThreads);
     uint numThreads_exScan;
-    printf("Numblocks_exScan %d\n",numBlocks_exScan);
+    //printf("Numblocks_exScan %d\n",numBlocks_exScan);
     computeGridSize(numBlocks,128,numBlocks_exScan,numThreads_exScan);
 
     if(numBlocks_exScan == 1)
@@ -121,7 +122,7 @@ void exclusiveScan_wrapper(uint numBlocks,
                               interBlockScan,
                               blockSums,
                               numBlocks,
-                              1);
+                              VT);
 
     //Add to each block the carry-on of its respective block
     k_downsweep <<< numBlocks, numThreads >>> (result, vector, localScan, interBlockScan, vt, iDivUp(vectorSize,vt));
@@ -149,47 +150,22 @@ __global__ void k_downsweep(int* result,
         carryOn = blocksExclusiveScan[blockIdx.x];
     }
 
-
-    //if (blockIdx.x == 2)
-        //carryOn++;
-
-    if(gIdx==0){
-            printf("Blocks scan\n\n");
-        for (int i = 0; i<blockDim.x; i++)
-            printf(" %d ", blocksExclusiveScan[i]);
-        printf("\n--------\n");
-    }
-
-/*
-    if(gIdx==0){
-        for (int i = 0; i<size; i++)
-            printf(" %d ", parallelScans[i]);
-        printf("--------");
-    }
-*/
     //Scan the VT values locally
     int localCarryOn = 0;
     if (tIdx != 0)
         localCarryOn = parallelScans[gIdx];
-/*
-    if (blockIdx.x == 0 && tIdx == 1){
-        printf("localCarryOn %d\n", localCarryOn);
-        printf("originalArray %d\n ",originalArray[3]);
-    }
-    */
+
     int currentSum = 0;
-    for (int i=0; i < vt; i++)
+
+    #pragma unroll
+    for (int i=0; i < VT; i++)
     {
         if (tIdx == 0 && i==0)
             currentSum=0;
         else
-            currentSum += originalArray[gIdx * vt + i - 1];
-       result[gIdx*vt + i] = currentSum + localCarryOn + carryOn;
+            currentSum += originalArray[gIdx * VT + i - 1];
+       result[gIdx*VT + i] = currentSum + localCarryOn + carryOn;
     }
-
-    //each thread now must add the carryOn for the previous
-
-
 
 }
 
@@ -203,6 +179,8 @@ __global__ void k_exclusiveScan(int* result, int*vector, int vectorSize, int vt)
 
     //Load values in shared memory
     int partial_sum = 0;
+
+    #pragma unroll
     for (int i= 0; i < vt; i++){
 
         int global_index = gIdx * vt + i;
@@ -215,6 +193,7 @@ __global__ void k_exclusiveScan(int* result, int*vector, int vectorSize, int vt)
     int first = 0;
     __syncthreads();
 
+    #pragma unroll
     for (int offset = 1; offset < blockDim.x; offset += offset)
     {
         if (tIdx >= offset){
@@ -234,26 +213,21 @@ __global__ void k_exclusiveScan(int* result, int*vector, int vectorSize, int vt)
 
 
 
-__global__ void k_upsweep(int* result, int* partialSums, int* vector, int vectorSize, int vt){
+__global__ void k_upsweep(int* result, int* partialSums, int* vector, int vectorSize, int vt, int realSize){
 
     int gIdx = (blockIdx.x * blockDim.x) + threadIdx.x;
-    if (gIdx >= iDivUp(vectorSize,vt)) return;
+    if (gIdx >= realSize) return;
 
     int tIdx = threadIdx.x;
     __shared__ int s_vector[SHARED_SIZE];
 
-    /*
-    if (gIdx == 0){
-        printf(" printing vector.... \n");
-        for (int i = 0; i < vectorSize; i++)
-            printf(" %d ", vector[i]);
-        printf("\n");
-    }*/
     //Load values in shared memory
     int partial_sum = 0;
-    for (int i= 0; i < vt; i++){
 
-        int global_index = gIdx * vt + i;
+    #pragma unroll
+    for (int i= 0; i < VT; i++){
+
+        int global_index = gIdx * VT + i;
         if (global_index < vectorSize && (tIdx + i) != 0)
             partial_sum += vector[global_index - 1];
     }
@@ -262,6 +236,7 @@ __global__ void k_upsweep(int* result, int* partialSums, int* vector, int vector
     int first = 0;
     __syncthreads();
 
+    #pragma unroll
     for (int offset = 1; offset < blockDim.x; offset += offset)
     {
         if (tIdx >= offset){
@@ -280,23 +255,11 @@ __global__ void k_upsweep(int* result, int* partialSums, int* vector, int vector
 
     int lastElem = 0;
     if (blockIdx.x == 0)
-        lastElem = vector[blockDim.x * vt-1];
+        lastElem = vector[blockDim.x * VT-1];
+    else if (blockIdx.x == gridDim.x -1)
+        lastElem = vector[vectorSize-1];
     else
-        lastElem = vector[((blockIdx.x +1) * blockDim.x * vt) -1];
-
-    if (tIdx == 0)
-        printf("Last elem found... %d in block %d, pos calculated %d \n",lastElem, blockIdx.x, (blockIdx.x * blockDim.x * vt) -1);
-
-    if(gIdx==0){
-        printf("Elem %d in position %d\n", vector[767], 767);
-        printf("Elem %d in position %d\n", vector[768], 768);
-
-        printf("Elem %d in position %d\n", vector[255], 255);
-        printf("Elem %d in position %d\n", vector[256], 256);
-
-        printf("Elem %d in position %d\n", vector[383], 383);
-        printf("Elem %d in position %d\n", vector[384], 384);
-    }
+        lastElem = vector[((blockIdx.x +1) * blockDim.x * VT) -1];
 
     if (tIdx == 0)
         partialSums[blockIdx.x] = s_vector[blockDim.x + first - 1] + lastElem;

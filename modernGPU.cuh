@@ -27,7 +27,12 @@ void exclusiveScan_thrust(int *first,
                           int init);
 
 
-__global__ void k_upsweep(int* result, int* partialSums, int* vector, int vectorSize, int vt);
+__global__ void k_upsweep(int* result,
+                          int* partialSums,
+                          int* vector,
+                          int vectorSize,
+                          int vt,
+                          int realSize);
 __global__ void k_exclusiveScan(int* result, int*vector, int vectorSize, int vt);
 
 __global__ void k_downsweep(int* result,

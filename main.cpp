@@ -5,6 +5,8 @@
 
 #include "modernGPU.cuh"
 
+#define VT 3
+
 void pickCudaDevice()
 {
     //Get Cuda architecture as defined in compilation .pro file.
@@ -72,7 +74,7 @@ int main(int argc, char *argv[])
     QCoreApplication a(argc, argv);
 
 
-    int size = 1000;
+    int size = 100000000;
     int vt = 3;
 
     int* vector = (int *) malloc (size * sizeof(int));
@@ -85,11 +87,11 @@ int main(int argc, char *argv[])
         vector[i] = number; //rand() % 10;
     }
 
-
+/*
     for (int i=0; i<size; i++)
         printf(" %d ", vector[i]);
    printf("\n");
-
+*/
 
     pickCudaDevice();
     checkCudaError();
@@ -116,25 +118,60 @@ int main(int argc, char *argv[])
     cudaMemcpy(d_vectorCheck,vector,size * sizeof(int), cudaMemcpyHostToDevice);
 
 
-    computeGridSize(iDivUp(size,vt),128,numBlocks,numThreads);
+    computeGridSize(iDivUp(size,VT),128,numBlocks,numThreads);
 
     printf("Start kernel\n");
     //reduce_wrapper(numBlocks,numThreads,d_result,d_vector,size, vt);
     //checkCudaError();
+
+    //gpu time measurement
+    cudaEvent_t gstart_exScan,gstop_exScan;
+    cudaEventCreate(&gstart_exScan);
+    cudaEventCreate(&gstop_exScan);
+
+    cudaEventRecord(gstart_exScan, 0);
 
     exclusiveScan_wrapper(numBlocks,
                           numThreads,
                           d_result,
                           d_vector,
                           size,
-                          vt);
+                          VT);
+
+    cudaEventRecord(gstop_exScan, 0);
+    cudaEventSynchronize(gstop_exScan);
+
+    float gpu_time_exScan;
+    cudaEventElapsedTime(&gpu_time_exScan, gstart_exScan, gstop_exScan);
+    printf("Our GPU version has finished, it took %f ms\n",gpu_time_exScan );
+
+    cudaEventDestroy(gstart_exScan); //cleaning up a bit
+    cudaEventDestroy(gstop_exScan);
     checkCudaError();
 
+
+    //gpu time measurement
+    cudaEvent_t gstart,gstop;
+    cudaEventCreate(&gstart);
+    cudaEventCreate(&gstop);
+
+    cudaEventRecord(gstart, 0);
 
     exclusiveScan_thrust(d_vectorCheck,
                          d_vectorCheck + size,
                          d_resultCheck,
                          0);
+
+    cudaEventRecord(gstop, 0);
+    cudaEventSynchronize(gstop);
+
+    float gpu_time;
+    cudaEventElapsedTime(&gpu_time, gstart, gstop);
+    printf("Thrust version has finished, it took %f ms\n",gpu_time );
+
+    cudaEventDestroy(gstart); //cleaning up a bit
+    cudaEventDestroy(gstop);
+
     checkCudaError();
 
     printf("End kernel\n");
@@ -153,7 +190,7 @@ int main(int argc, char *argv[])
        printf(" %d ", vector[i]);
   printf("\n");
 */
-    printf("Number %d\n", vectorsDifference(vector,vectorCheck,size));
+    printf("Difference %d\n", vectorsDifference(vector,vectorCheck,size));
 
     if(areVectorsEqual(vector,vectorCheck,size) == 0)
         printf("Vectors are equal!!\n");
