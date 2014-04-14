@@ -5,8 +5,8 @@
 
 #include "modernGPU.cuh"
 
-#define VT 3
-#define NTHREADS 3
+#define VT 5
+#define NTHREADS 128
 
 void pickCudaDevice()
 {
@@ -75,19 +75,19 @@ int main(int argc, char *argv[])
     QCoreApplication a(argc, argv);
 
 
-    int size = 100000000;
-    int vt = 3;
+    int size = 20000000;
+    int vt = 5;
 
 
 
     //example
-    size =9;
+ //  size =9;
 
 
     int* vector = (int *) malloc (size * sizeof(int));
     int* vectorCheck = (int *) malloc (size * sizeof(int));
 
-
+/*
     //example
     vector[0] = 1;
     vector[1] = 3;
@@ -98,15 +98,16 @@ int main(int argc, char *argv[])
     vector[6] = 6;
     vector[7] = 2;
     vector[8] = 3;
+*/
 
-/*
+
     int number = 0;
     for (int i = 0; i < size; i++){
         if (i % (vt * 128) == 0)
             number++;
         vector[i] = rand() % 10;
     }
-*/
+
 /*
     for (int i=0; i<size; i++)
         printf(" %d ", vector[i]);
@@ -151,7 +152,7 @@ int main(int argc, char *argv[])
 
     cudaEventRecord(gstart_exScan, 0);
 
-    exclusiveScan_wrapper(numBlocks,
+    exclusiveScan_wrapper2(numBlocks,
                           numThreads,
                           d_result,
                           d_vector,

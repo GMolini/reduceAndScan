@@ -14,6 +14,21 @@ void reduce_wrapper(uint numBlocks,
 
 __global__ void k_reduce(int * result, int* vector, int vectorSize, int vt);
 
+void exclusiveScan_wrapper2(uint numBlocks,
+                           uint numThreads,
+                           int* result,
+                           int* vector,
+                           int  vectorSize,
+                           int vt);
+
+__global__ void k_downsweep2(int* result,
+                            int* originalArray,
+                            int* parallelScans,
+                            int* blocksExclusiveScan,
+                            int vt,
+                            int size,
+                             int realsize);
+
 void exclusiveScan_wrapper(uint numBlocks,
                            uint numThreads,
                            int* result,
